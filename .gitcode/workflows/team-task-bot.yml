@@ -1,0 +1,86 @@
+# OpenNoesis/vllm 任务机器人（移植自 minda_mianshi 无人机仓）
+# 必须合入默认分支（main）后才会触发；仓库 Secrets 需配置 TASK_BOT_TOKEN（GitCode PAT，含 issues 写权限）
+name: team-task-bot
+
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [assigned]
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  on-comment:
+    if: ${{ atomgit.event_name == 'issue_comment' || github.event_name == 'issue_comment' }}
+    runs-on: [ubuntu-latest, x64, small]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.TASK_BOT_TOKEN }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Handle CLAIM / APPROVE / COMPLETE / SCORE
+        env:
+          GITCODE_TOKEN: ${{ secrets.TASK_BOT_TOKEN }}
+          GITCODE_OWNER: OpenNoesis
+          GITCODE_REPO: vllm
+          TASK_BOT_PUSH_BRANCH: main
+          TASK_BOT_MODE: comment
+          COMMENT_BODY: ${{ atomgit.event.comment.body }}
+          COMMENT_USER: ${{ atomgit.event.comment.user.login }}
+          COMMENT_USER_TYPE: ${{ atomgit.event.comment.user.type }}
+          ISSUE_NUMBER: ${{ atomgit.event.issue.number }}
+          ISSUE_TITLE: ${{ atomgit.event.issue.title }}
+          ISSUE_BODY: ${{ atomgit.event.issue.body }}
+        run: python team/scripts/task_bot.py
+
+  on-assigned:
+    if: ${{ atomgit.event_name == 'issues' || github.event_name == 'issues' }}
+    runs-on: [ubuntu-latest, x64, small]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.TASK_BOT_TOKEN }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Speak when maintainer assigns
+        env:
+          GITCODE_TOKEN: ${{ secrets.TASK_BOT_TOKEN }}
+          GITCODE_OWNER: OpenNoesis
+          GITCODE_REPO: vllm
+          TASK_BOT_PUSH_BRANCH: main
+          TASK_BOT_MODE: assigned
+          ISSUE_NUMBER: ${{ atomgit.event.issue.number }}
+          ISSUE_TITLE: ${{ atomgit.event.issue.title }}
+          ASSIGNEE_LOGIN: ${{ atomgit.event.assignee.login }}
+          ACTOR_LOGIN: ${{ atomgit.actor }}
+        run: python team/scripts/task_bot.py
+
+  on-stale:
+    if: ${{ atomgit.event_name == 'schedule' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: [ubuntu-latest, x64, small]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.TASK_BOT_TOKEN }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Auto-release after 14 days idle
+        env:
+          GITCODE_TOKEN: ${{ secrets.TASK_BOT_TOKEN }}
+          GITCODE_OWNER: OpenNoesis
+          GITCODE_REPO: vllm
+          TASK_BOT_PUSH_BRANCH: main
+          TASK_BOT_MODE: stale
+        run: python team/scripts/task_bot.py
